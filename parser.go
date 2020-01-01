@@ -14,6 +14,14 @@ import (
 	"github.com/bagaswh/telebparser/utils"
 )
 
+// Constants of message types.
+const (
+	messageTypeText  = 1
+	messageTypeVideo = 2
+	messageTypeAudio = 3
+	messageTypeVoice = 4
+)
+
 // MessageRoom represents one chat room.
 type MessageRoom struct {
 	// The name of the room.
@@ -30,7 +38,7 @@ type Message struct {
 	ID string
 
 	// When the message is sent.
-	DateSent time.Time
+	DateSent string
 
 	// The name of the user who sends the message.
 	SenderName string
@@ -39,19 +47,25 @@ type Message struct {
 	// Empty string if not replying.
 	ReplyToID string
 
+	// Type of the message.
+	MessageType int
+
 	// Content is the message content.
 	// This data could be anything: text, media, audio, etc.
 	Content interface{}
 
 	// The path of the media if the message is a media type.
 	MediaPath string
-}
 
-// Regular expression for date string on `.date`'s title attribute inside `.body`.
-var dateRe = regexp.MustCompile("(\\d{2})\\.(\\d{2})\\.(\\d{4}) (\\d{2}):(\\d{2}):(\\d{2})")
+	// The path of media's thumbnail.
+	MediaThumbnailPath string
+}
 
 // getTimeComponents extracts individual "date components" (day, month, year, etc.) from the date string.
 func getTimeComponents(dateString string) (day, month, year, hour, minute, second int) {
+	// Regular expression for date string on `.date`'s title attribute inside `.body`.
+	var dateRe = regexp.MustCompile("(\\d{2})\\.(\\d{2})\\.(\\d{4}) (\\d{2}):(\\d{2}):(\\d{2})")
+
 	dateComponents := dateRe.FindSubmatch([]byte(dateString))
 	day, _ = strconv.Atoi(string(dateComponents[1]))
 	month, _ = strconv.Atoi(string(dateComponents[2]))
@@ -109,11 +123,30 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 		return Message{}
 	}
 
-	// content parsing is tricky
-	var content interface{}
-	content = utils.GetText(body.Find(".text"))
+	var replyToID string
+	if el := body.Find(".reply_to"); utils.Exists(el) {
+		href, _ := el.Find("a").Attr("href")
+		replyToID = href[7:]
+	}
 
-	return Message{ID, dateSent, fromName, "", content, ""}
+	var messageType int
+
+	// content parsing
+	var content interface{}
+	var mediaPath string
+	var el *goquery.Selection
+	if el = body.Find(".text"); utils.Exists(el) {
+		messageType = messageTypeText
+		content = utils.GetText(el)
+	} else if el = body.Find(".media_wrap"); utils.Exists(el) {
+		var mediaEl *goquery.Selection
+		if mediaEl = el.Find(".video_file_wrap"); utils.Exists(mediaEl) {
+			messageType = messageTypeVideo
+		}
+		mediaPath, _ = mediaEl.Attr("href")
+	}
+
+	return Message{ID, dateSent.Format("01/02/2006 15:04:05"), fromName, replyToID, messageType, content, mediaPath, ""}
 }
 
 // parseFile parses an html file.

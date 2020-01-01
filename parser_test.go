@@ -2,6 +2,7 @@ package telebparser
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 )
@@ -11,6 +12,7 @@ func parse() error {
 
 	var messageRoom MessageRoom
 	Parse(filepath, &messageRoom)
+	fmt.Println(len(messageRoom.Messages))
 
 	f, _ := os.Create("messages.json")
 	json.NewEncoder(f).Encode(messageRoom)
