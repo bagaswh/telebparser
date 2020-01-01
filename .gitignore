@@ -19,6 +19,9 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+messages.json
+pretty-print-json.js
+
 ### Go Patch ###
 /vendor/
 /Godeps/

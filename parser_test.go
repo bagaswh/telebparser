@@ -1,7 +1,8 @@
 package telebparser
 
 import (
-	"fmt"
+	"encoding/json"
+	"os"
 	"testing"
 )
 
@@ -10,7 +11,9 @@ func parse() error {
 
 	var messageRoom MessageRoom
 	Parse(filepath, &messageRoom)
-	fmt.Println(messageRoom)
+
+	f, _ := os.Create("messages.json")
+	json.NewEncoder(f).Encode(messageRoom)
 
 	return nil
 }

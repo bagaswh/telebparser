@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/bagaswh/telebparser/utils"
 )
 
 // MessageRoom represents one chat room.
@@ -41,6 +42,9 @@ type Message struct {
 	// Content is the message content.
 	// This data could be anything: text, media, audio, etc.
 	Content interface{}
+
+	// The path of the media if the message is a media type.
+	MediaPath string
 }
 
 // Regular expression for date string on `.date`'s title attribute inside `.body`.
@@ -94,7 +98,7 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 	if s.HasClass("joined") {
 		fromName = *prevFromName
 	} else {
-		fromName = body.Find(".from_name").Text()
+		fromName = utils.GetText(body.Find(".from_name"))
 		*prevFromName = fromName
 	}
 
@@ -107,9 +111,9 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 
 	// content parsing is tricky
 	var content interface{}
-	content = body.Find(".text").Text()
+	content = utils.GetText(body.Find(".text"))
 
-	return Message{ID, dateSent, fromName, "", content}
+	return Message{ID, dateSent, fromName, "", content, ""}
 }
 
 // parseFile parses an html file.
@@ -125,6 +129,7 @@ func parseFile(doc *goquery.Document, messages *[]Message) error {
 
 func forEachFile(root string, fn func(r io.Reader) error) error {
 	dirs, err := ioutil.ReadDir(root)
+
 	if err != nil {
 		return err
 	}
@@ -153,17 +158,15 @@ func forEachFile(root string, fn func(r io.Reader) error) error {
 }
 
 func Parse(root string, messageRoom *MessageRoom) error {
-	hasGotRoomName := false
 	forEachFile(root, func(r io.Reader) error {
 		doc, err := goquery.NewDocumentFromReader(r)
 		if err != nil {
 			return err
 		}
 
-		if !hasGotRoomName {
+		if messageRoom.RoomName == "" {
 			// Parse room name.
-			messageRoom.RoomName = doc.Find(".page_header").Find(".text").Text()
-			hasGotRoomName = true
+			messageRoom.RoomName = utils.GetText(doc.Find(".page_header").Find(".text"))
 		}
 
 		parseFile(doc, &messageRoom.Messages)
