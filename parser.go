@@ -116,6 +116,7 @@ func parseTime(dateString string, locString string) (time.Time, error) {
 	return timeValue, nil
 }
 
+// ParseContent parses message content of each `.message` element.
 func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, mediaThumbnailPath string) {
 	var el *goquery.Selection
 	if el = s.Find(".text"); utils.Exists(el) {
@@ -131,12 +132,8 @@ func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, me
 	return
 }
 
-// parseMessage parses individual `.message` element.
+// ParseMessage parses individual `.message` element.
 func parseMessage(s *goquery.Selection, prevFromName *string) Message {
-	if !s.HasClass("default") {
-		return Message{}
-	}
-
 	var fromName string
 
 	ID, _ := s.Attr("id")
@@ -147,7 +144,8 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 	if s.HasClass("joined") {
 		fromName = *prevFromName
 	} else {
-		fromName = utils.GetText(body.Find(".from_name"))
+		fromNameEl := goquery.NewDocumentFromNode(body.Children().Get(1))
+		fromName = utils.GetText(fromNameEl.Selection)
 		*prevFromName = fromName
 	}
 
@@ -170,10 +168,13 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 	return Message{ID, dateSent.Format("01/02/2006 15:04:05"), fromName, replyToID, messageType, content, mediaPath, mediaThumbnailPath}
 }
 
-// parseFile parses an html file.
+// ParseFile parses an html file.
 func parseFile(doc *goquery.Document, messages *[]Message) error {
 	var prevFromName string
 	doc.Find(".message").Each(func(i int, s *goquery.Selection) {
+		if !s.HasClass("default") {
+			return
+		}
 		message := parseMessage(s, &prevFromName)
 		*messages = append(*messages, message)
 	})
@@ -209,6 +210,7 @@ func forEachFile(root string, fn func(r io.Reader) error) error {
 	return nil
 }
 
+// Parse parses whole directory into single struct.
 func Parse(root string, messageRoom *MessageRoom) error {
 	forEachFile(root, func(r io.Reader) error {
 		doc, err := goquery.NewDocumentFromReader(r)
@@ -222,7 +224,6 @@ func Parse(root string, messageRoom *MessageRoom) error {
 
 		}
 
-		utils.PrintExecutionTime("parseFile", parseFile, doc, &messageRoom.Messages)
 		parseFile(doc, &messageRoom.Messages)
 
 		return nil

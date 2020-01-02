@@ -2,29 +2,21 @@ package telebparser
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
-func parse() error {
-	filepath := "C:\\Users\\Bagas Wahyu Hidayah\\Downloads\\Telegram Desktop\\ChatExport_30_12_2019"
+var filepath = "C:\\Users\\Bagas Wahyu Hidayah\\Downloads\\Telegram Desktop\\ChatExport_30_12_2019"
+var r, _ = os.Open(filepath + "\\messages.html")
+var doc, _ = goquery.NewDocumentFromReader(r)
+var messageEl = doc.Find(".message")
+var body = messageEl.Find(".body")
 
+func parse() error {
 	var messageRoom MessageRoom
 	Parse(filepath, &messageRoom)
-
-	namesCount := map[string]int{}
-	for _, v := range messageRoom.Messages {
-		_, ok := namesCount[v.SenderName]
-		if !ok {
-			namesCount[v.SenderName] = 0
-		}
-		namesCount[v.SenderName]++
-	}
-
-	for k, v := range namesCount {
-		fmt.Println(k, v)
-	}
 
 	f, _ := os.Create("messages.json")
 	json.NewEncoder(f).Encode(messageRoom)
@@ -36,8 +28,42 @@ func TestParser(t *testing.T) {
 	parse()
 }
 
-func BenchmarkParser(b *testing.B) {
+func BenchmarkParseFile(b *testing.B) {
+	messages := make([]Message, 0, 0)
 	for i := 0; i < b.N; i++ {
-		parse()
+		parseFile(doc, &messages)
+	}
+}
+
+func BenchmarkParseMessage(b *testing.B) {
+	var name string
+	for i := 0; i < b.N; i++ {
+		parseMessage(messageEl, &name)
+	}
+}
+
+func BenchmarkParseContent(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		parseContent(body)
+	}
+}
+
+func BenchmarkParseTime(b *testing.B) {
+	dateString, _ := body.Find(".date").Attr("title")
+	for i := 0; i < b.N; i++ {
+		parseTime(dateString, "Asia/Jakarta")
+	}
+}
+
+func BenchmarkGetTimeComponents(b *testing.B) {
+	dateString, _ := body.Find(".date").Attr("title")
+	for i := 0; i < b.N; i++ {
+		getTimeComponents(dateString)
+	}
+}
+
+func BenchmarkGetTimeValue(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		getTimeValue(24, 10, 2001, 18, 54, 23, "Asia/Jakarta")
 	}
 }
