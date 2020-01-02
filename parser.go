@@ -27,10 +27,13 @@ func (err *InvalidDirectoryError) Error() string {
 
 // Constants of message types.
 const (
-	messageTypeText  = 1
-	messageTypeVideo = 2
-	messageTypeAudio = 3
-	messageTypeVoice = 4
+	messageTypeText    = iota
+	messageTypePhoto   = iota
+	messageTypeSticker = iota
+	messageTypeVideo   = iota
+	messageTypeGIF     = iota
+	messageTypeAudio   = iota
+	messageTypeVoice   = iota
 )
 
 // MessageRoom represents one chat room.
@@ -126,6 +129,20 @@ func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, me
 		var mediaEl *goquery.Selection
 		if mediaEl = el.Find(".video_file_wrap"); utils.Exists(mediaEl) {
 			messageType = messageTypeVideo
+			mediaThumbnailPath, _ = el.Find(".video_file").Attr("src")
+		} else if mediaEl = el.Find(".photo_wrap"); utils.Exists(mediaEl) {
+			messageType = messageTypePhoto
+			mediaThumbnailPath, _ = el.Find(".photo").Attr("src")
+		} else if mediaEl = el.Find(".sticker_wrap"); utils.Exists(mediaEl) {
+			messageType = messageTypeSticker
+			mediaThumbnailPath, _ = el.Find(".sticker").Attr("src")
+		} else if mediaEl = el.Find(".animated_wrap"); utils.Exists(mediaEl) {
+			messageType = messageTypeGIF
+			mediaThumbnailPath, _ = el.Find(".animated").Attr("src")
+		} else if mediaEl = el.Find(".media_voice_message"); utils.Exists(mediaEl) {
+			messageType = messageTypeVoice
+		} else if mediaEl = el.Find(".media_audio_file"); utils.Exists(mediaEl) {
+			messageType = messageTypeAudio
 		}
 		mediaPath, _ = mediaEl.Attr("href")
 	}

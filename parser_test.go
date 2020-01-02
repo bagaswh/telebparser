@@ -8,7 +8,8 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-var filepath = "C:\\Users\\Bagas Wahyu Hidayah\\Downloads\\Telegram Desktop\\ChatExport_30_12_2019"
+var filepath = "C:\\Users\\Bagas Wahyu Hidayah\\Downloads\\Telegram Desktop\\ChatExport_02_01_2020 (1)"
+var filepath2 = "C:\\Users\\Bagas Wahyu Hidayah\\Downloads\\Telegram Desktop\\ChatExport_02_01_2020"
 var r, _ = os.Open(filepath + "\\messages.html")
 var doc, _ = goquery.NewDocumentFromReader(r)
 var messageEl = doc.Find(".message")
