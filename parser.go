@@ -1,6 +1,7 @@
 package telebparser
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,6 +14,16 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bagaswh/telebparser/utils"
 )
+
+type InvalidDirectoryError struct {
+	Directory string
+	Cause     string
+	Err       error
+}
+
+func (err *InvalidDirectoryError) Error() string {
+	return fmt.Sprintf("[%s] Directory[%s] is not valid because it [%s]", err.Err, err.Directory, err.Cause)
+}
 
 // Constants of message types.
 const (
@@ -61,11 +72,11 @@ type Message struct {
 	MediaThumbnailPath string
 }
 
+// Regular expression for date string on `.date`'s title attribute inside `.body`.
+var dateRe = regexp.MustCompile("(\\d{2})\\.(\\d{2})\\.(\\d{4}) (\\d{2}):(\\d{2}):(\\d{2})")
+
 // getTimeComponents extracts individual "date components" (day, month, year, etc.) from the date string.
 func getTimeComponents(dateString string) (day, month, year, hour, minute, second int) {
-	// Regular expression for date string on `.date`'s title attribute inside `.body`.
-	var dateRe = regexp.MustCompile("(\\d{2})\\.(\\d{2})\\.(\\d{4}) (\\d{2}):(\\d{2}):(\\d{2})")
-
 	dateComponents := dateRe.FindSubmatch([]byte(dateString))
 	day, _ = strconv.Atoi(string(dateComponents[1]))
 	month, _ = strconv.Atoi(string(dateComponents[2]))
@@ -77,23 +88,47 @@ func getTimeComponents(dateString string) (day, month, year, hour, minute, secon
 	return
 }
 
+// Caching.
+var timeLocationCache *time.Location
+var timeLocationString string
+
 // getTimeValue creates time.Time value from extracted date components.
 func getTimeValue(day, month, year, hour, minute, second int, locString string) (time.Time, error) {
-	timeLocation, err := time.LoadLocation(locString)
-	if err != nil {
-		return time.Time{}, err
+	if locString != timeLocationString {
+		timeLocationString = locString
+		timeLocation, err := time.LoadLocation(locString)
+		if err != nil {
+			return time.Time{}, err
+		}
+		timeLocationCache = timeLocation
 	}
 
-	return time.Date(year, time.Month(month), day, hour, minute, second, 0, timeLocation), nil
+	return time.Date(year, time.Month(month), day, hour, minute, second, 0, timeLocationCache), nil
 }
 
 func parseTime(dateString string, locString string) (time.Time, error) {
 	day, month, year, hour, minute, second := getTimeComponents(dateString)
+
 	timeValue, err := getTimeValue(day, month, year, hour, minute, second, locString)
 	if err != nil {
 		return time.Time{}, err
 	}
 	return timeValue, nil
+}
+
+func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, mediaThumbnailPath string) {
+	var el *goquery.Selection
+	if el = s.Find(".text"); utils.Exists(el) {
+		messageType = messageTypeText
+		content = utils.GetText(el)
+	} else if el = s.Find(".media_wrap"); utils.Exists(el) {
+		var mediaEl *goquery.Selection
+		if mediaEl = el.Find(".video_file_wrap"); utils.Exists(mediaEl) {
+			messageType = messageTypeVideo
+		}
+		mediaPath, _ = mediaEl.Attr("href")
+	}
+	return
 }
 
 // parseMessage parses individual `.message` element.
@@ -129,24 +164,10 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 		replyToID = href[7:]
 	}
 
-	var messageType int
-
 	// content parsing
-	var content interface{}
-	var mediaPath string
-	var el *goquery.Selection
-	if el = body.Find(".text"); utils.Exists(el) {
-		messageType = messageTypeText
-		content = utils.GetText(el)
-	} else if el = body.Find(".media_wrap"); utils.Exists(el) {
-		var mediaEl *goquery.Selection
-		if mediaEl = el.Find(".video_file_wrap"); utils.Exists(mediaEl) {
-			messageType = messageTypeVideo
-		}
-		mediaPath, _ = mediaEl.Attr("href")
-	}
+	messageType, content, mediaPath, mediaThumbnailPath := parseContent(body)
 
-	return Message{ID, dateSent.Format("01/02/2006 15:04:05"), fromName, replyToID, messageType, content, mediaPath, ""}
+	return Message{ID, dateSent.Format("01/02/2006 15:04:05"), fromName, replyToID, messageType, content, mediaPath, mediaThumbnailPath}
 }
 
 // parseFile parses an html file.
@@ -180,9 +201,7 @@ func forEachFile(root string, fn func(r io.Reader) error) error {
 			if err != nil {
 				return err
 			}
-
 			fn(f)
-
 			f.Close()
 		}
 	}
@@ -200,8 +219,10 @@ func Parse(root string, messageRoom *MessageRoom) error {
 		if messageRoom.RoomName == "" {
 			// Parse room name.
 			messageRoom.RoomName = utils.GetText(doc.Find(".page_header").Find(".text"))
+
 		}
 
+		utils.PrintExecutionTime("parseFile", parseFile, doc, &messageRoom.Messages)
 		parseFile(doc, &messageRoom.Messages)
 
 		return nil

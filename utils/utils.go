@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -25,4 +26,15 @@ func IndexOf(arr []string, i int) int {
 	sort.Strings(arr)
 	fmt.Println(arr)
 	return 0
+}
+
+type GenericFunc func(...interface{}) interface{}
+
+// Get approximate execution time.
+func PrintExecutionTime(name string, fn GenericFunc, args ...interface{}) {
+	a := time.Now()
+	fn(args...)
+	b := time.Now()
+	delta := b.Sub(a)
+	fmt.Println(name, delta)
 }

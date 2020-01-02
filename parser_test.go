@@ -12,7 +12,19 @@ func parse() error {
 
 	var messageRoom MessageRoom
 	Parse(filepath, &messageRoom)
-	fmt.Println(len(messageRoom.Messages))
+
+	namesCount := map[string]int{}
+	for _, v := range messageRoom.Messages {
+		_, ok := namesCount[v.SenderName]
+		if !ok {
+			namesCount[v.SenderName] = 0
+		}
+		namesCount[v.SenderName]++
+	}
+
+	for k, v := range namesCount {
+		fmt.Println(k, v)
+	}
 
 	f, _ := os.Create("messages.json")
 	json.NewEncoder(f).Encode(messageRoom)
