@@ -4,12 +4,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"regexp"
-	"strconv"
-	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bagaswh/telebparser/utils"
@@ -75,50 +72,6 @@ type Message struct {
 	MediaThumbnailPath string
 }
 
-// Regular expression for date string on `.date`'s title attribute inside `.body`.
-var dateRe = regexp.MustCompile("(\\d{2})\\.(\\d{2})\\.(\\d{4}) (\\d{2}):(\\d{2}):(\\d{2})")
-
-// getTimeComponents extracts individual "date components" (day, month, year, etc.) from the date string.
-func getTimeComponents(dateString string) (day, month, year, hour, minute, second int) {
-	dateComponents := dateRe.FindSubmatch([]byte(dateString))
-	day, _ = strconv.Atoi(string(dateComponents[1]))
-	month, _ = strconv.Atoi(string(dateComponents[2]))
-	year, _ = strconv.Atoi(string(dateComponents[3]))
-	hour, _ = strconv.Atoi(string(dateComponents[4]))
-	minute, _ = strconv.Atoi(string(dateComponents[5]))
-	second, _ = strconv.Atoi(string(dateComponents[6]))
-
-	return
-}
-
-// Caching.
-var timeLocationCache *time.Location
-var timeLocationString string
-
-// getTimeValue creates time.Time value from extracted date components.
-func getTimeValue(day, month, year, hour, minute, second int, locString string) (time.Time, error) {
-	if locString != timeLocationString {
-		timeLocationString = locString
-		timeLocation, err := time.LoadLocation(locString)
-		if err != nil {
-			return time.Time{}, err
-		}
-		timeLocationCache = timeLocation
-	}
-
-	return time.Date(year, time.Month(month), day, hour, minute, second, 0, timeLocationCache), nil
-}
-
-func parseTime(dateString string, locString string) (time.Time, error) {
-	day, month, year, hour, minute, second := getTimeComponents(dateString)
-
-	timeValue, err := getTimeValue(day, month, year, hour, minute, second, locString)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return timeValue, nil
-}
-
 // ParseContent parses message content of each `.message` element.
 func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, mediaThumbnailPath string) {
 	var el *goquery.Selection
@@ -166,12 +119,7 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 		*prevFromName = fromName
 	}
 
-	dateString, _ := body.Find(".date").Attr("title")
-	dateSent, err := parseTime(dateString, "Asia/Jakarta")
-	if err != nil {
-		log.Fatal(err)
-		return Message{}
-	}
+	dateSent, _ := body.Find(".date").Attr("title")
 
 	var replyToID string
 	if el := body.Find(".reply_to"); utils.Exists(el) {
@@ -182,7 +130,7 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 	// content parsing
 	messageType, content, mediaPath, mediaThumbnailPath := parseContent(body)
 
-	return Message{ID, dateSent.Format("01/02/2006 15:04:05"), fromName, replyToID, messageType, content, mediaPath, mediaThumbnailPath}
+	return Message{ID, dateSent, fromName, replyToID, messageType, content, mediaPath, mediaThumbnailPath}
 }
 
 // ParseFile parses an html file.

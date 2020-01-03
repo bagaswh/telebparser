@@ -48,23 +48,3 @@ func BenchmarkParseContent(b *testing.B) {
 		parseContent(body)
 	}
 }
-
-func BenchmarkParseTime(b *testing.B) {
-	dateString, _ := body.Find(".date").Attr("title")
-	for i := 0; i < b.N; i++ {
-		parseTime(dateString, "Asia/Jakarta")
-	}
-}
-
-func BenchmarkGetTimeComponents(b *testing.B) {
-	dateString, _ := body.Find(".date").Attr("title")
-	for i := 0; i < b.N; i++ {
-		getTimeComponents(dateString)
-	}
-}
-
-func BenchmarkGetTimeValue(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		getTimeValue(24, 10, 2001, 18, 54, 23, "Asia/Jakarta")
-	}
-}
