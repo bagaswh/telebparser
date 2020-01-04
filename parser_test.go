@@ -9,7 +9,6 @@ import (
 )
 
 var filepath = "C:\\Users\\Bagas Wahyu Hidayah\\Downloads\\Telegram Desktop\\ChatExport_02_01_2020 (1)"
-var filepath2 = "C:\\Users\\Bagas Wahyu Hidayah\\Downloads\\Telegram Desktop\\ChatExport_02_01_2020"
 var r, _ = os.Open(filepath + "\\messages.html")
 var doc, _ = goquery.NewDocumentFromReader(r)
 var messageEl = doc.Find(".message")
@@ -45,6 +44,6 @@ func BenchmarkParseMessage(b *testing.B) {
 
 func BenchmarkParseContent(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		parseContent(body)
+		parseContent(body, false)
 	}
 }

@@ -73,31 +73,58 @@ type Message struct {
 }
 
 // ParseContent parses message content of each `.message` element.
-func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, mediaThumbnailPath string) {
+func parseContent(s *goquery.Selection, isJoined bool) (messageType int, content, mediaPath, mediaThumbnailPath string) {
 	var el *goquery.Selection
-	if el = s.Find(".text"); utils.Exists(el) {
+	var indexToFind int
+	if isJoined {
+		indexToFind = 1
+	} else {
+		indexToFind = 2
+	}
+	el = goquery.NewDocumentFromNode(s.Children().Get(indexToFind)).Selection
+	var mediaThumbnailElementIndex int
+	switch {
+	case el.HasClass("text"):
 		messageType = messageTypeText
 		content = utils.GetText(el)
-	} else if el = s.Find(".media_wrap"); utils.Exists(el) {
-		var mediaEl *goquery.Selection
-		if mediaEl = el.Find(".video_file_wrap"); utils.Exists(mediaEl) {
+	case el.HasClass("media_wrap"):
+		mediaEl := goquery.NewDocumentFromNode(el.Children().Get(0)).Selection
+		switch {
+		case mediaEl.HasClass("video_file_wrap"):
 			messageType = messageTypeVideo
-			mediaThumbnailPath, _ = el.Find(".video_file").Attr("src")
-		} else if mediaEl = el.Find(".photo_wrap"); utils.Exists(mediaEl) {
+			mediaThumbnailElementIndex = 2
+		case mediaEl.HasClass("photo_wrap"):
 			messageType = messageTypePhoto
-			mediaThumbnailPath, _ = el.Find(".photo").Attr("src")
-		} else if mediaEl = el.Find(".sticker_wrap"); utils.Exists(mediaEl) {
+			mediaThumbnailElementIndex = 0
+		case mediaEl.HasClass("sticker_wrap"):
 			messageType = messageTypeSticker
-			mediaThumbnailPath, _ = el.Find(".sticker").Attr("src")
-		} else if mediaEl = el.Find(".animated_wrap"); utils.Exists(mediaEl) {
+			mediaThumbnailElementIndex = 0
+		case mediaEl.HasClass("animated_wrap"):
 			messageType = messageTypeGIF
-			mediaThumbnailPath, _ = el.Find(".animated").Attr("src")
-		} else if mediaEl = el.Find(".media_voice_message"); utils.Exists(mediaEl) {
+			mediaThumbnailElementIndex = 1
+		case mediaEl.HasClass("media_voice_message"):
 			messageType = messageTypeVoice
-		} else if mediaEl = el.Find(".media_audio_file"); utils.Exists(mediaEl) {
+		case mediaEl.HasClass("media_audio_file"):
 			messageType = messageTypeAudio
 		}
+		// if mediaEl = el.Find(".video_file_wrap"); utils.Exists(mediaEl) {
+		// mediaThumbnailPath, _ = el.Find(".video_file").Attr("src")
+		// } else if mediaEl = el.Find(".photo_wrap"); utils.Exists(mediaEl) {
+		// messageType = messageTypePhoto
+		// mediaThumbnailPath, _ = el.Find(".photo").Attr("src")
+		// } else if mediaEl = el.Find(".sticker_wrap"); utils.Exists(mediaEl) {
+		// messageType = messageTypeSticker
+		// mediaThumbnailPath, _ = el.Find(".sticker").Attr("src")
+		// } else if mediaEl = el.Find(".animated_wrap"); utils.Exists(mediaEl) {
+		// messageType = messageTypeGIF
+		// mediaThumbnailPath, _ = el.Find(".animated").Attr("src")
+		// } else if mediaEl = el.Find(".media_voice_message"); utils.Exists(mediaEl) {
+		// messageType = messageTypeVoice
+		// } else if mediaEl = el.Find(".media_audio_file"); utils.Exists(mediaEl) {
+		// messageType = messageTypeAudio
+		// }
 		mediaPath, _ = mediaEl.Attr("href")
+		mediaThumbnailPath, _ = goquery.NewDocumentFromNode(mediaEl.Children().Get(mediaThumbnailElementIndex)).Attr("src")
 	}
 	return
 }
@@ -128,7 +155,7 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 	}
 
 	// content parsing
-	messageType, content, mediaPath, mediaThumbnailPath := parseContent(body)
+	messageType, content, mediaPath, mediaThumbnailPath := parseContent(body, s.HasClass("joined"))
 
 	return Message{ID, dateSent, fromName, replyToID, messageType, content, mediaPath, mediaThumbnailPath}
 }
