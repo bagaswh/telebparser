@@ -107,22 +107,6 @@ func parseContent(s *goquery.Selection, isJoined bool) (messageType int, content
 		case mediaEl.HasClass("media_audio_file"):
 			messageType = messageTypeAudio
 		}
-		// if mediaEl = el.Find(".video_file_wrap"); utils.Exists(mediaEl) {
-		// mediaThumbnailPath, _ = el.Find(".video_file").Attr("src")
-		// } else if mediaEl = el.Find(".photo_wrap"); utils.Exists(mediaEl) {
-		// messageType = messageTypePhoto
-		// mediaThumbnailPath, _ = el.Find(".photo").Attr("src")
-		// } else if mediaEl = el.Find(".sticker_wrap"); utils.Exists(mediaEl) {
-		// messageType = messageTypeSticker
-		// mediaThumbnailPath, _ = el.Find(".sticker").Attr("src")
-		// } else if mediaEl = el.Find(".animated_wrap"); utils.Exists(mediaEl) {
-		// messageType = messageTypeGIF
-		// mediaThumbnailPath, _ = el.Find(".animated").Attr("src")
-		// } else if mediaEl = el.Find(".media_voice_message"); utils.Exists(mediaEl) {
-		// messageType = messageTypeVoice
-		// } else if mediaEl = el.Find(".media_audio_file"); utils.Exists(mediaEl) {
-		// messageType = messageTypeAudio
-		// }
 		mediaPath, _ = mediaEl.Attr("href")
 		mediaThumbnailPath, _ = goquery.NewDocumentFromNode(mediaEl.Children().Get(mediaThumbnailElementIndex)).Attr("src")
 	}
