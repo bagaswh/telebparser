@@ -136,6 +136,9 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 // ParseFile parses an html file.
 func parseFile(doc *goquery.Document, messages *[]Message) error {
 	var prevFromName string
+	messagesEl := doc.Find(".message")
+	fmt.Println(len(messagesEl.Nodes))
+
 	doc.Find(".message").Each(func(i int, s *goquery.Selection) {
 		if !s.HasClass("default") {
 			return
@@ -149,7 +152,6 @@ func parseFile(doc *goquery.Document, messages *[]Message) error {
 
 func forEachFile(root string, fn func(r io.Reader) error) error {
 	dirs, err := ioutil.ReadDir(root)
-
 	if err != nil {
 		return err
 	}
