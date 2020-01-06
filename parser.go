@@ -2,11 +2,13 @@ package telebparser
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
+	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"regexp"
+	"runtime"
+	"sync"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bagaswh/telebparser/utils"
@@ -35,6 +37,8 @@ const (
 
 // MessageRoom represents one chat room.
 type MessageRoom struct {
+	mu sync.Mutex
+
 	// The name of the room.
 	RoomName string
 
@@ -44,6 +48,7 @@ type MessageRoom struct {
 
 // Message represents one individual message sent by user.
 type Message struct {
+
 	// ID is unique for each message.
 	// It is assigned in `id` attribute.
 	ID string
@@ -105,11 +110,8 @@ func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, me
 // ParseMessage parses individual `.message` element.
 func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 	var fromName string
-
 	ID, _ := s.Attr("id")
-
 	body := s.Find(".body")
-
 	// Message inside `div.message` that has `joined` class is sent by previous message's sender (recursively).
 	if s.HasClass("joined") {
 		fromName = *prevFromName
@@ -118,27 +120,20 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 		fromName = utils.GetText(fromNameEl.Selection)
 		*prevFromName = fromName
 	}
-
 	dateSent, _ := body.Find(".date").Attr("title")
-
 	var replyToID string
 	if el := body.Find(".reply_to"); utils.Exists(el) {
 		href, _ := el.Find("a").Attr("href")
 		replyToID = href[7:]
 	}
-
 	// content parsing
 	messageType, content, mediaPath, mediaThumbnailPath := parseContent(body)
-
 	return Message{ID, dateSent, fromName, replyToID, messageType, content, mediaPath, mediaThumbnailPath}
 }
 
 // ParseFile parses an html file.
 func parseFile(doc *goquery.Document, messages *[]Message) error {
 	var prevFromName string
-	messagesEl := doc.Find(".message")
-	fmt.Println(len(messagesEl.Nodes))
-
 	doc.Find(".message").Each(func(i int, s *goquery.Selection) {
 		if !s.HasClass("default") {
 			return
@@ -146,55 +141,80 @@ func parseFile(doc *goquery.Document, messages *[]Message) error {
 		message := parseMessage(s, &prevFromName)
 		*messages = append(*messages, message)
 	})
-
 	return nil
 }
 
-func forEachFile(root string, fn func(r io.Reader) error) error {
+func getFiltered(root string, re *regexp.Regexp) ([]os.FileInfo, error) {
 	dirs, err := ioutil.ReadDir(root)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	re := regexp.MustCompile("^messages\\d*\\.html")
+	dirsFiltered := make([]os.FileInfo, 0, 0)
 	for i := range dirs {
 		if dirs[i].IsDir() {
 			continue
 		}
-
 		filename := dirs[i].Name()
-		fullpath := path.Join(root, filename)
 		if re.Match([]byte(filename)) {
-			f, err := os.Open(fullpath)
-			if err != nil {
-				return err
-			}
-			fn(f)
-			f.Close()
+			dirsFiltered = append(dirsFiltered, dirs[i])
 		}
 	}
+	return dirsFiltered, nil
+}
 
-	return nil
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
 // Parse parses whole directory into single struct.
 func Parse(root string, messageRoom *MessageRoom) error {
-	forEachFile(root, func(r io.Reader) error {
-		doc, err := goquery.NewDocumentFromReader(r)
-		if err != nil {
-			return err
-		}
-
-		if messageRoom.RoomName == "" {
-			// Parse room name.
-			messageRoom.RoomName = utils.GetText(doc.Find(".page_header").Find(".text"))
-
-		}
-
-		parseFile(doc, &messageRoom.Messages)
-
-		return nil
-	})
-
+	re := regexp.MustCompile("^messages\\d*\\.html")
+	dirsFiltered, err := getFiltered(root, re)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	// parallel processing setup
+	numGrs := runtime.NumCPU()
+	numDirs := len(dirsFiltered)
+	// use not more than number of files' goroutines
+	if numDirs < numGrs {
+		numGrs = numDirs
+	}
+	var wg sync.WaitGroup
+	wg.Add(numGrs)
+	filesPerGrs := numDirs / numGrs
+	mod := numDirs % numGrs
+	var first, last int
+	for i := 0; i < numGrs; i++ {
+		last = first + filesPerGrs + mod - 1
+		mod = 0
+		go func(first int, last int) {
+			defer wg.Done()
+			// create local slice to store messages to avoid cache coherence
+			messages := make([]Message, 0, 0)
+			for j := first; j < last; j++ {
+				fullpath := filepath.Join(root, dirsFiltered[j].Name())
+				f, err := os.Open(fullpath)
+				if err != nil {
+					log.Fatal(err)
+					return
+				}
+				doc, err := goquery.NewDocumentFromReader(f)
+				f.Close()
+				parseFile(doc, &messages)
+			}
+			// messageRoom.Messages is shared, need lock
+			messageRoom.mu.Lock()
+			defer messageRoom.mu.Unlock()
+			messageRoom.Messages = append(messageRoom.Messages, messages...)
+		}(first, last)
+		first = last + 1
+	}
+	wg.Wait()
 	return nil
 }
+
+// TODO: make getFiltered function that returns slice of directory that's filtered by name
+// TODO: process dirs/numberOfGoroutines for each goroutine
+// TODO: append operation is atomic (mutex)
