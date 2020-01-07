@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/bagaswh/telebparser/utils"
 )
 
 type InvalidDirectoryError struct {
@@ -80,26 +79,26 @@ type Message struct {
 // ParseContent parses message content of each `.message` element.
 func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, mediaThumbnailPath string) {
 	var el *goquery.Selection
-	if el = s.Find(".text"); utils.Exists(el) {
+	if el = s.Find(".text"); exists(el) {
 		messageType = messageTypeText
-		content = utils.GetText(el)
-	} else if el = s.Find(".media_wrap"); utils.Exists(el) {
+		content = getText(el)
+	} else if el = s.Find(".media_wrap"); exists(el) {
 		var mediaEl *goquery.Selection
-		if mediaEl = el.Find(".video_file_wrap"); utils.Exists(mediaEl) {
+		if mediaEl = el.Find(".video_file_wrap"); exists(mediaEl) {
 			messageType = messageTypeVideo
 			mediaThumbnailPath, _ = el.Find(".video_file").Attr("src")
-		} else if mediaEl = el.Find(".photo_wrap"); utils.Exists(mediaEl) {
+		} else if mediaEl = el.Find(".photo_wrap"); exists(mediaEl) {
 			messageType = messageTypePhoto
 			mediaThumbnailPath, _ = el.Find(".photo").Attr("src")
-		} else if mediaEl = el.Find(".sticker_wrap"); utils.Exists(mediaEl) {
+		} else if mediaEl = el.Find(".sticker_wrap"); exists(mediaEl) {
 			messageType = messageTypeSticker
 			mediaThumbnailPath, _ = el.Find(".sticker").Attr("src")
-		} else if mediaEl = el.Find(".animated_wrap"); utils.Exists(mediaEl) {
+		} else if mediaEl = el.Find(".animated_wrap"); exists(mediaEl) {
 			messageType = messageTypeGIF
 			mediaThumbnailPath, _ = el.Find(".animated").Attr("src")
-		} else if mediaEl = el.Find(".media_voice_message"); utils.Exists(mediaEl) {
+		} else if mediaEl = el.Find(".media_voice_message"); exists(mediaEl) {
 			messageType = messageTypeVoice
-		} else if mediaEl = el.Find(".media_audio_file"); utils.Exists(mediaEl) {
+		} else if mediaEl = el.Find(".media_audio_file"); exists(mediaEl) {
 			messageType = messageTypeAudio
 		}
 		mediaPath, _ = mediaEl.Attr("href")
@@ -117,12 +116,12 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 		fromName = *prevFromName
 	} else {
 		fromNameEl := goquery.NewDocumentFromNode(body.Children().Get(1))
-		fromName = utils.GetText(fromNameEl.Selection)
+		fromName = getText(fromNameEl.Selection)
 		*prevFromName = fromName
 	}
 	dateSent, _ := body.Find(".date").Attr("title")
 	var replyToID string
-	if el := body.Find(".reply_to"); utils.Exists(el) {
+	if el := body.Find(".reply_to"); exists(el) {
 		href, _ := el.Find("a").Attr("href")
 		replyToID = href[7:]
 	}
@@ -214,7 +213,3 @@ func Parse(root string, messageRoom *MessageRoom) error {
 	wg.Wait()
 	return nil
 }
-
-// TODO: make getFiltered function that returns slice of directory that's filtered by name
-// TODO: process dirs/numberOfGoroutines for each goroutine
-// TODO: append operation is atomic (mutex)
