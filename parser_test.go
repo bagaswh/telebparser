@@ -7,6 +7,7 @@ import (
 )
 
 var path = "/media/bagaswh/72F061FAF061C547/Users/Bagas Wahyu Hidayah/Downloads/Telegram Desktop/ChatExport_02_01_2020 (1)"
+var invalidPath = "/home/bagaswh"
 
 // var filepath2 = "C:\\Users\\Bagas Wahyu Hidayah\\Downloads\\Telegram Desktop\\ChatExport_02_01_2020"
 // var r, _ = os.Open(filepath + "\\messages.html")
@@ -24,8 +25,23 @@ func parse() error {
 	return nil
 }
 
+func parseInvalidDirectoryError() error {
+	var messageRoom MessageRoom
+	err := Parse(invalidPath, &messageRoom)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func TestParser(t *testing.T) {
 	parse()
+}
+
+func TestParserError(t *testing.T) {
+	if err := parseInvalidDirectoryError(); err == nil {
+		t.Error("Invalid directory: error must be thrown!")
+	}
 }
 
 /* func BenchmarkParseFile(b *testing.B) {

@@ -1,6 +1,7 @@
 package telebparser
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -20,7 +21,7 @@ type InvalidDirectoryError struct {
 }
 
 func (err *InvalidDirectoryError) Error() string {
-	return fmt.Sprintf("[%s] Directory[%s] is not valid because it [%s]", err.Err, err.Directory, err.Cause)
+	return fmt.Sprintf("[%s] Directory[%s] is not valid because [%s]", err.Err, err.Directory, err.Cause)
 }
 
 // Constants of message types.
@@ -47,7 +48,6 @@ type MessageRoom struct {
 
 // Message represents one individual message sent by user.
 type Message struct {
-
 	// ID is unique for each message.
 	// It is assigned in `id` attribute.
 	ID string
@@ -143,6 +143,14 @@ func parseFile(doc *goquery.Document, messages *[]Message) error {
 	return nil
 }
 
+func isValidDirectory(filtered []os.FileInfo) bool {
+	switch {
+	case len(filtered) == 0:
+		return false
+	}
+	return true
+}
+
 func getFiltered(root string, re *regexp.Regexp) ([]os.FileInfo, error) {
 	dirs, err := ioutil.ReadDir(root)
 	if err != nil {
@@ -158,6 +166,9 @@ func getFiltered(root string, re *regexp.Regexp) ([]os.FileInfo, error) {
 			dirsFiltered = append(dirsFiltered, dirs[i])
 		}
 	}
+	if !isValidDirectory(dirsFiltered) {
+		return nil, &InvalidDirectoryError{Directory: root, Cause: "directory does not contain [^messages\\d*.html] file", Err: errors.New("InvalidDirectoryError")}
+	}
 	return dirsFiltered, nil
 }
 
@@ -167,10 +178,15 @@ func init() {
 
 // Parse parses whole directory into single struct.
 func Parse(root string, messageRoom *MessageRoom) error {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("recovered")
+		}
+	}()
+
 	re := regexp.MustCompile("^messages\\d*\\.html")
 	dirsFiltered, err := getFiltered(root, re)
 	if err != nil {
-		log.Fatal(err)
 		return err
 	}
 	// parallel processing setup
@@ -197,7 +213,7 @@ func Parse(root string, messageRoom *MessageRoom) error {
 				f, err := os.Open(fullpath)
 				if err != nil {
 					log.Fatal(err)
-					return
+					panic(err)
 				}
 				doc, err := goquery.NewDocumentFromReader(f)
 				f.Close()
