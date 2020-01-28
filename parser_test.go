@@ -1,40 +1,46 @@
 package telebparser
 
 import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"runtime"
 	"testing"
 )
 
-var path = "/media/bagaswh/72F061FAF061C547/Users/Bagas Wahyu Hidayah/Downloads/Telegram Desktop/ChatExport_02_01_2020 (1)"
-var invalidPath = "/home/bagaswh"
+var path string
+var numCPU int
+var showDebug bool
+var printJson bool
+
+func init() {
+	flag.StringVar(&path, "path", "", "Root path of the backup files")
+	flag.IntVar(&numCPU, "numcpu", runtime.NumCPU(), "Number of CPUs")
+	flag.BoolVar(&showDebug, "showdebug", true, "Show debug informations")
+	flag.BoolVar(&printJson, "printjson", false, "Print messages JSON output")
+	// flag.Parse()
+}
 
 func parse() error {
 	var messageRoom MessageRoom
-	Parse(path, &messageRoom, 4)
+	Parse(path, &messageRoom, numCPU)
 
-	// f, _ := os.Create("messages.json")
-	// json.NewEncoder(f).Encode(messageRoom)
-
-	return nil
-}
-
-func parseInvalidDirectoryError() error {
-	var messageRoom MessageRoom
-	err := Parse(invalidPath, &messageRoom, 1)
-	if err != nil {
-		return err
+	if showDebug {
+		fmt.Printf("parsed %d messages\n", len(messageRoom.Messages))
 	}
+
+	if printJson {
+		f, _ := os.Create("messages.json")
+		json.NewEncoder(f).Encode(messageRoom)
+	}
+
 	return nil
 }
 
 func TestParse(t *testing.T) {
 	if err := parse(); err != nil {
 		t.Error(err)
-	}
-}
-
-func TestParseError(t *testing.T) {
-	if err := parseInvalidDirectoryError(); err == nil {
-		t.Error("Invalid directory: error must be thrown!")
 	}
 }
 
