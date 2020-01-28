@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime"
 	"sync"
+	"math"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -172,40 +173,39 @@ func getFiltered(root string, re *regexp.Regexp) ([]os.FileInfo, error) {
 	return dirsFiltered, nil
 }
 
-func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-}
-
 // Parse parses whole directory into single struct.
-func Parse(root string, messageRoom *MessageRoom) error {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("recovered")
-		}
-	}()
+func Parse(root string, messageRoom *MessageRoom, numCPU int) error {
+	numCPU = int(math.Max(math.Min(float64(numCPU), float64(runtime.NumCPU())), 1.0))
+	runtime.GOMAXPROCS(numCPU)
 
 	re := regexp.MustCompile("^messages\\d*\\.html")
 	dirsFiltered, err := getFiltered(root, re)
 	if err != nil {
 		return err
 	}
+
 	// parallel processing setup
-	numGrs := runtime.NumCPU()
+	numGrs := numCPU
+	var wg sync.WaitGroup
+	wg.Add(numGrs)
+
 	numDirs := len(dirsFiltered)
 	// use not more than number of files' goroutines
 	if numDirs < numGrs {
 		numGrs = numDirs
 	}
-	var wg sync.WaitGroup
-	wg.Add(numGrs)
+
 	filesPerGrs := numDirs / numGrs
 	mod := numDirs % numGrs
+
 	var first, last int
 	for i := 0; i < numGrs; i++ {
-		last = first + filesPerGrs + mod - 1
+		last = first + filesPerGrs + mod
 		mod = 0
+
 		go func(first int, last int) {
 			defer wg.Done()
+
 			// create local slice to store messages to avoid cache coherence
 			messages := make([]Message, 0, 0)
 			for j := first; j < last; j++ {
@@ -213,19 +213,20 @@ func Parse(root string, messageRoom *MessageRoom) error {
 				f, err := os.Open(fullpath)
 				if err != nil {
 					log.Fatal(err)
-					panic(err)
 				}
 				doc, err := goquery.NewDocumentFromReader(f)
 				f.Close()
 				parseFile(doc, &messages)
 			}
+
 			// messageRoom.Messages is shared, need lock
 			messageRoom.mu.Lock()
 			defer messageRoom.mu.Unlock()
 			messageRoom.Messages = append(messageRoom.Messages, messages...)
 		}(first, last)
-		first = last + 1
+		first = last
 	}
+
 	wg.Wait()
 	return nil
 }
