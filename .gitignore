@@ -20,9 +20,6 @@
 # vendor/
 
 messages.json
-messages.json.gz
-gzip.js
-pretty-print-json.js
 
 ### Go Patch ###
 /vendor/
