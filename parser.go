@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"sync"
-	"math"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -54,7 +56,7 @@ type Message struct {
 	ID string
 
 	// When the message is sent.
-	DateSent string
+	DateMs int64
 
 	// The name of the user who sends the message.
 	SenderName string
@@ -107,6 +109,45 @@ func parseContent(s *goquery.Selection) (messageType int, content, mediaPath, me
 	return
 }
 
+var dateRe = regexp.MustCompile("(\\d{2})\\.(\\d{2})\\.(\\d{4}) (\\d{2})\\:(\\d{2})\\:(\\d{2})")
+
+func getDateComponents(datestring string) (int, int, int, int, int, int) {
+	dateComponents := dateRe.FindSubmatch([]byte(datestring))
+	day, _ := strconv.Atoi(string(dateComponents[1]))
+	month, _ := strconv.Atoi(string(dateComponents[2]))
+	year, _ := strconv.Atoi(string(dateComponents[3]))
+	hour, _ := strconv.Atoi(string(dateComponents[4]))
+	minute, _ := strconv.Atoi(string(dateComponents[5]))
+	second, _ := strconv.Atoi(string(dateComponents[6]))
+	return day, month, year, hour, minute, second
+}
+
+// Caching
+var timeLocationCache *time.Location
+var timeLocationString string
+
+func getTimeValue(datestring, locString string) (time.Time, error) {
+	day, month, year, hour, minute, second := getDateComponents(datestring)
+	if locString != timeLocationString {
+		timeLocationString = locString
+		timeLocation, err := time.LoadLocation(locString)
+		if err != nil {
+			return time.Time{}, err
+		}
+		timeLocationCache = timeLocation
+	}
+	return time.Date(year, time.Month(month), day, hour, minute, second, 0, timeLocationCache), nil
+}
+
+func toUnixEpoch(datestring string) int64 {
+	timeValue, err := getTimeValue(datestring, "Asia/Jakarta")
+	_ = timeValue
+	if err != nil {
+		log.Fatal(err)
+	}
+	return timeValue.Unix()
+}
+
 // ParseMessage parses individual `.message` element.
 func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 	var fromName string
@@ -121,6 +162,7 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 		*prevFromName = fromName
 	}
 	dateSent, _ := body.Find(".date").Attr("title")
+	dateMs := toUnixEpoch(dateSent)
 	var replyToID string
 	if el := body.Find(".reply_to"); exists(el) {
 		href, _ := el.Find("a").Attr("href")
@@ -128,7 +170,7 @@ func parseMessage(s *goquery.Selection, prevFromName *string) Message {
 	}
 	// content parsing
 	messageType, content, mediaPath, mediaThumbnailPath := parseContent(body)
-	return Message{ID, dateSent, fromName, replyToID, messageType, content, mediaPath, mediaThumbnailPath}
+	return Message{ID, dateMs, fromName, replyToID, messageType, content, mediaPath, mediaThumbnailPath}
 }
 
 // ParseFile parses an html file.
