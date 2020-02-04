@@ -43,40 +43,40 @@ type MessageRoom struct {
 	mu sync.Mutex
 
 	// The name of the room.
-	RoomName string
+	RoomName string `json:"roomname,omitempty"`
 
 	// List of messages in the room.
-	Messages []Message
+	Messages []Message `json:"messages,omitempty"`
 }
 
 // Message represents one individual message sent by user.
 type Message struct {
 	// ID is unique for each message.
 	// It is assigned in `id` attribute.
-	ID string
+	ID string `json:"id,omitempty"`
 
 	// When the message is sent.
-	DateMs int64
+	DateMs int64 `json:"timestamp,omitempty"`
 
 	// The name of the user who sends the message.
-	SenderName string
+	SenderName string `json:"sender,omitempty"`
 
 	// If this message is replying other message, this is the ID this message is replying to.
 	// Empty string if not replying.
-	ReplyToID string
+	ReplyToID string `json:"reply_to_id,omitempty"`
 
 	// Type of the message.
-	MessageType int
+	MessageType int `json:"messagetype,omitempty"`
 
 	// Content is the message content.
 	// This data could be anything: text, media, audio, etc.
-	Content interface{}
+	Content interface{} `json:"content,omitempty"`
 
 	// The path of the media if the message is a media type.
-	MediaPath string
+	MediaPath string `json:"mediapath,omitempty"`
 
 	// The path of media's thumbnail.
-	MediaThumbnailPath string
+	MediaThumbnailPath string `json:"mediathumbnailpath,omitempty"`
 }
 
 // ParseContent parses message content of each `.message` element.
