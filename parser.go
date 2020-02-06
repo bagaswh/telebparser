@@ -126,9 +126,9 @@ func getDateComponents(datestring string) (int, int, int, int, int, int) {
 var timeLocationCache *time.Location
 var timeLocationString string
 
-func getTimeValue(datestring, locString string, messageRoom *MessageRoom) (time.Time, error) {
-	messageRoom.mu.Lock()
-	defer messageRoom.mu.Unlock()
+func getTimeValue(datestring, locString string, mu *sync.Mutex) (time.Time, error) {
+	mu.Lock()
+	defer mu.Unlock()
 	day, month, year, hour, minute, second := getDateComponents(datestring)
 	if locString != timeLocationString {
 		timeLocationString = locString
@@ -141,8 +141,8 @@ func getTimeValue(datestring, locString string, messageRoom *MessageRoom) (time.
 	return time.Date(year, time.Month(month), day, hour, minute, second, 0, timeLocationCache), nil
 }
 
-func toUnixEpoch(datestring string, messageRoom *MessageRoom) int64 {
-	timeValue, err := getTimeValue(datestring, "Asia/Jakarta", messageRoom)
+func toUnixEpoch(datestring string, mu *sync.Mutex) int64 {
+	timeValue, err := getTimeValue(datestring, "Asia/Jakarta", mu)
 	_ = timeValue
 	if err != nil {
 		log.Fatal(err)
@@ -151,7 +151,7 @@ func toUnixEpoch(datestring string, messageRoom *MessageRoom) int64 {
 }
 
 // ParseMessage parses individual `.message` element.
-func parseMessage(s *goquery.Selection, messageRoom *MessageRoom, prevFromName *string) Message {
+func parseMessage(s *goquery.Selection, mu *sync.Mutex, prevFromName *string) Message {
 	var fromName string
 	ID, _ := s.Attr("id")
 	body := s.Find(".body")
@@ -164,7 +164,7 @@ func parseMessage(s *goquery.Selection, messageRoom *MessageRoom, prevFromName *
 		*prevFromName = fromName
 	}
 	dateSent, _ := body.Find(".date").Attr("title")
-	dateMs := toUnixEpoch(dateSent, messageRoom)
+	dateMs := toUnixEpoch(dateSent, mu)
 	var replyToID string
 	if el := body.Find(".reply_to"); exists(el) {
 		href, _ := el.Find("a").Attr("href")
@@ -176,13 +176,13 @@ func parseMessage(s *goquery.Selection, messageRoom *MessageRoom, prevFromName *
 }
 
 // ParseFile parses an html file.
-func parseFile(doc *goquery.Document, messageRoom *MessageRoom, messages *[]Message) error {
+func parseFile(doc *goquery.Document, mu *sync.Mutex, messages *[]Message) error {
 	var prevFromName string
 	doc.Find(".message").Each(func(i int, s *goquery.Selection) {
 		if !s.HasClass("default") {
 			return
 		}
-		message := parseMessage(s, messageRoom, &prevFromName)
+		message := parseMessage(s, mu, &prevFromName)
 		*messages = append(*messages, message)
 	})
 	return nil
@@ -260,7 +260,7 @@ func Parse(root string, messageRoom *MessageRoom, numCPU int) error {
 				}
 				doc, err := goquery.NewDocumentFromReader(f)
 				f.Close()
-				parseFile(doc, messageRoom, &messages)
+				parseFile(doc, &messageRoom.mu, &messages)
 			}
 
 			// messageRoom.Messages is shared, need lock
